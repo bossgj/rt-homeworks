@@ -1,0 +1,23 @@
+# Adăugiri pentru VM 102 (web, 10.10.10.10), peste compose.yml. Se aleg din .env:
+#
+#   COMPOSE_FILE=compose.yml:compose.102.yml
+#
+# Aplicația intră în rețeaua Docker a brokerului (containerul "mqtt" din
+# control-tools-and-services) și se conectează la el direct, pe portul intern
+# 1883. Ascultă pe toate interfețele VM-ului, pe 8007, ca s-o ajungă Caddy de
+# pe VM 101 (reverse-proxy), care o publică la /semafor/.
+
+services:
+  app:
+    environment:
+      BROKER: tcp://mqtt:1883
+    ports: !override
+      - "8007:8080"
+    networks:
+      - default
+      - broker
+
+networks:
+  broker:
+    name: control-tools-and-services_default
+    external: true

@@ -206,6 +206,28 @@ Dashboard-ul:
 - la **Buton pietoni**, trimite plăcii selectate comanda `BUTTON` și măsoară cât durează până se aprinde lampa AȘTEPTAȚI;
 - afișează mesajele invalide.
 
+### `start/dashboard-web/` (gata implementat, opțional)
+
+Același dashboard, ca pagină web, cu o intersecție mai realistă, văzută de sus. Pe două benzi vin mașini, care opresc la linia de oprire la roșu și la galben (dacă mai pot opri) și formează coloane. Pe trotuare vin pietoni: unii trec doar pe lângă, alții așteaptă la bordură și traversează pe verde. Și aici, simularea doar reacționează la lămpile primite de la placă și nu ia nicio decizie. Ca la dashboard-ul Swing, setați `STUDENT` în `Config.java`, identic cu `config.h`.
+
+```bash
+cd start/dashboard-web
+mvn -q compile exec:java
+```
+
+Pagina se deschide singură; altfel, deschideți `http://127.0.0.1:8080/`. Cele două dashboard-uri pot rula în același timp.
+
+Dashboard-ul web rulează și pe serverul cursului, fără să instalați nimic: [https://control.aut.utcluj.ro/semafor/](https://control.aut.utcluj.ro/semafor/). Pagina vă cere numele, identic cu `STUDENT` din `config.h`, și apoi arată doar plăcile voastre. Puteți păstra adresa cu numele inclus, de exemplu `https://control.aut.utcluj.ro/semafor/?student=popescu-ion`. `Dockerfile` și fișierele `compose*.yml` din folder sunt pentru acest server; pentru temă nu aveți nevoie de ele.
+
+Pe lângă ce face dashboard-ul Swing, pagina web:
+
+- arată coloanele de mașini oprite pe fiecare bandă, câți pietoni așteaptă și cât au așteptat;
+- arată urmările greșelilor plăcii: un verde trecut în roșu fără galben produce **mașini trecute pe roșu** (șoferii nu mai pot opri), iar un verde pentru pietoni cu mașinile pe verde sau pe galben produce **conflicte mașină–pieton** pe zebră;
+- are opțiunea **pietonii apasă singuri butonul**: fiecare pieton care ajunge la bordură trimite `BUTTON`, iar unii apasă din nou, deși lampa AȘTEPTAȚI e deja aprinsă. Așa încercați taskul sporadic cu apăsări venite la momente întâmplătoare;
+- vă lasă să alegeți cât de aglomerat este traficul de mașini și de pietoni.
+
+Cu traficul „aglomerat” și cu pietoni la fiecare ciclu, coloanele de mașini cresc: verdele minim de 10 s nu ajunge pentru toate mașinile. Nu este o greșeală a plăcii.
+
 ### `start/esp32_semafor/`
 
 Scheletul schiței Arduino. Ca în tema 02, comunicația este gata: Wi-Fi, ora (SNTP), clientul MQTT. Așa cum este, schița se conectează la broker și afișează pe Serial comenzile primite, dar nu publică nimic, deci dashboard-ul încă nu vede placa.
@@ -294,7 +316,8 @@ Soluția se află în fork-ul vostru, în folderul `tema-03-semafor-simplu/`:
 tema-03-semafor-simplu/
 └── start/
     ├── esp32_semafor/        # schița completată
-    └── dashboard/            # doar STUDENT setat în Config.java
+    ├── dashboard/            # doar STUDENT setat în Config.java
+    └── dashboard-web/        # doar STUDENT setat în Config.java, dacă l-ați folosit
 ```
 
 **Nu urcați în fork parola rețelei voastre Wi-Fi.** Înainte de commit, puneți înapoi în `config.h` valorile pentru `iot-demo`.
