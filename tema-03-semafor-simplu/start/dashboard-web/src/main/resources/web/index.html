@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semafor pentru pietoni</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>Semafor pentru pietoni <span id="student"></span> <a id="changeStudent" href="./" hidden>schimbă</a></h1>
+  <label class="device">Device
+    <select id="device"><option value="">(niciun device)</option></select>
+  </label>
+  <div class="phase">faza <b id="phase">–</b></div>
+  <div id="connection" class="pill">se conectează...</div>
+</header>
+
+<main>
+  <section class="card picker" id="picker" hidden>
+    <h2>Al cui semafor?</h2>
+    <form id="pickerForm">
+      <label for="pickerName">Numele vostru, identic cu <code>STUDENT</code> din <code>config.h</code>:</label>
+      <div class="picker-row">
+        <input id="pickerName" name="student" placeholder="popescu-ion" pattern="[A-Za-z0-9_.\-]{1,40}"
+               required autocomplete="off" spellcheck="false">
+        <button class="primary" type="submit">Deschide</button>
+      </div>
+      <p class="hint">Litere fără diacritice, cifre, <code>-</code>, <code>_</code> sau <code>.</code>. Pagina primește doar plăcile care publică pe <code>ssatr/&lt;nume&gt;/devices/+/lights</code>.</p>
+    </form>
+  </section>
+
+  <section class="card scene">
+    <canvas id="scene" aria-label="Trecerea de pietoni, văzută de sus"></canvas>
+  </section>
+
+  <section class="card signals">
+    <h2>Semafoarele</h2>
+    <div class="heads">
+      <div class="head-group">
+        <div class="head car" id="carHead">
+          <span class="lamp red"></span>
+          <span class="lamp yellow"></span>
+          <span class="lamp green"></span>
+        </div>
+        <div class="caption">mașini</div>
+      </div>
+      <div class="head-group">
+        <div class="ped-row">
+          <div class="head ped" id="pedHead">
+            <span class="lamp red">
+              <svg viewBox="0 0 24 40"><circle cx="12" cy="5" r="4"/><path d="M7 12h10l1 14h-3l-1 13h-4l-1-13H6z"/></svg>
+            </span>
+            <span class="lamp green">
+              <svg viewBox="0 0 24 40"><circle cx="13" cy="5" r="4"/><path d="M10 11l6 1 4 8-3 1-3-5-1 7 5 15h-4l-4-11-4 11H2l5-16 1-8-3 4-3-1z"/></svg>
+            </span>
+          </div>
+          <div class="countdown" id="countdown"></div>
+        </div>
+        <div class="wait-lamp" id="waitLamp">AȘTEPTAȚI</div>
+        <div class="caption">pietoni</div>
+      </div>
+    </div>
+    <button id="button" class="primary">Buton pietoni</button>
+  </section>
+
+  <section class="card status">
+    <h2>Placa</h2>
+    <dl>
+      <dt>ultimul mesaj</dt><dd id="lastMessage">–</dd>
+      <dt>buton pietoni</dt><dd id="buttonResult">–</dd>
+      <dt>siguranță</dt><dd id="safety">–</dd>
+    </dl>
+  </section>
+
+  <section class="card traffic">
+    <h2>Trafic</h2>
+    <dl>
+      <dt>mașini oprite</dt><dd id="carsStopped">–</dd>
+      <dt>pietoni care așteaptă</dt><dd id="pedsWaiting">–</dd>
+      <dt>așteptarea pietonilor</dt><dd id="pedsWait">–</dd>
+      <dt>mașini trecute pe roșu</dt><dd id="redRunners">0</dd>
+      <dt>conflicte mașină–pieton</dt><dd id="conflicts">0</dd>
+    </dl>
+    <div class="controls">
+      <label>mașini
+        <select id="carRate">
+          <option value="0.10">rar</option>
+          <option value="0.20" selected>mediu</option>
+          <option value="0.33">aglomerat</option>
+        </select>
+      </label>
+      <label>pietoni
+        <select id="pedRate">
+          <option value="0.05">rar</option>
+          <option value="0.10" selected>mediu</option>
+          <option value="0.22">aglomerat</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="autoPress"> pietonii apasă singuri butonul</label>
+      <button id="reset">Golește intersecția</button>
+    </div>
+  </section>
+
+  <section class="card log">
+    <h2>Jurnal</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script src="intersectie.js"></script>
+<script src="dashboard.js"></script>
+</body>
+</html>

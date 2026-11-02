@@ -36,3 +36,6 @@ modules.order
 
 # Date generate la rulare (CSV-urile scrise de business-service)
 **/business-service/data/
+
+# Setări locale Docker Compose (porturi, fișierele alese pe server)
+.env

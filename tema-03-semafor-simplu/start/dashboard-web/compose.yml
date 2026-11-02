@@ -1,0 +1,22 @@
+# Dashboard-ul web pe serverul cursului, pentru toți studenții (MULTI_STUDENT):
+# fiecare își deschide pagina cu ?student=<STUDENT din config.h>.
+# Pentru temă nu aveți nevoie de el: rulați local cu  mvn -q compile exec:java
+#
+#   docker compose up -d --build
+#
+# Pagina: http://localhost:8080/ (doar de pe mașina pe care rulează).
+# Pe VM 102 se adaugă compose.102.yml, ales din .env:
+#   COMPOSE_FILE=compose.yml:compose.102.yml
+
+name: semafor-web
+
+services:
+  app:
+    build: .
+    image: semafor-web:latest
+    environment:
+      BROKER: ${BROKER:-tcp://control.aut.utcluj.ro:11188}
+      BROKER_LABEL: control.aut.utcluj.ro:11188
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+    restart: unless-stopped
