@@ -7,8 +7,8 @@
 // refolosește pentru linia următoare.
 //
 // Fiecare comandă eliberează un job al taskului aperiodic, care o
-// interpretează, modifică starea LED-ului (cu mutexul) și răspunde cu
-// "OK ..." sau "ERROR ...". O comandă greșită nu oprește taskul.
+// interpretează, modifică starea LED-ului (prin led_set, cu mutexul) și
+// răspunde cu "OK ..." sau "ERROR ...". O comandă greșită nu oprește taskul.
 //
 // Un al doilea task, periodic (T = 50 ms), aplică starea pe LED.
 //
@@ -16,7 +16,7 @@
 //   LED ON | LED OFF    LED-ul aprins / stins
 //   BLINK <ms>          LED-ul clipește, cu semiperioada <ms>, între 100 și 5000
 //   STATUS              starea curentă
-// Încercați și comenzi greșite: BLINK, BLINK 20, BLINK 300 400, LED, xyz.
+// Încercați și comenzi greșite: BLINK, BLINK 20, BLINK abc, LED, xyz.
 
 const int LED_PIN = 8;  // LED-ul albastru: aprins pe LOW
 const size_t kCommandMaxLen = 32;
@@ -27,7 +27,9 @@ const long kBlinkMaxMs = 5000;
 enum LedMode { MODE_OFF, MODE_ON, MODE_BLINK };
 const char* const MODE_NAMES[] = {"OFF", "ON", "BLINK"};
 
-// Starea partajată de taskul aperiodic (scrie) și taskul periodic (citește)
+// Starea partajată de taskul aperiodic (scrie) și taskul periodic (citește).
+// Se accesează doar prin led_set() și led_get(), care țin mutexul cât scriu
+// sau copiază câmpurile, nu mai mult.
 struct LedState {
     LedMode mode;
     uint32_t blink_ms;
@@ -36,14 +38,24 @@ struct LedState {
 static LedState g_led = {MODE_OFF, 500};
 static SemaphoreHandle_t g_mutex = NULL;
 
+static void led_set(LedMode mode, uint32_t blink_ms) {
+    xSemaphoreTake(g_mutex, portMAX_DELAY);
+    g_led.mode = mode;
+    if (mode == MODE_BLINK) g_led.blink_ms = blink_ms;
+    xSemaphoreGive(g_mutex);
+}
+
+static LedState led_get(void) {
+    xSemaphoreTake(g_mutex, portMAX_DELAY);
+    LedState copy = g_led;
+    xSemaphoreGive(g_mutex);
+    return copy;
+}
+
 struct Command {
     char text[kCommandMaxLen];
 };
 static QueueHandle_t g_commands = NULL;
-
-static void reply(const char* text) {
-    Serial.printf("[comenzi] %s\n", text);
-}
 
 static void command_task(void* arg) {
     (void)arg;
@@ -51,60 +63,51 @@ static void command_task(void* arg) {
         Command c;
         xQueueReceive(g_commands, &c, portMAX_DELAY);  // blocat până sosește o comandă
 
-        char out[80];
-        char name[16];
-        long value = 0;
-        char extra;  // orice caracter după număr face comanda greșită ("BLINK 300 400", "BLINK 300ms")
-        int n = sscanf(c.text, "%15s %ld %c", name, &value, &extra);  // n = câte câmpuri s-au citit
-
-        if (strcmp(c.text, "LED ON") == 0 || strcmp(c.text, "LED OFF") == 0) {
-            xSemaphoreTake(g_mutex, portMAX_DELAY);
-            g_led.mode = strcmp(c.text, "LED ON") == 0 ? MODE_ON : MODE_OFF;
-            xSemaphoreGive(g_mutex);
-            snprintf(out, sizeof(out), "OK %s", c.text);
-        } else if (n >= 1 && strcmp(name, "BLINK") == 0) {
-            if (n != 2 || value < kBlinkMinMs || value > kBlinkMaxMs) {
-                snprintf(out, sizeof(out), "ERROR BLINK: se așteaptă un singur număr, între %ld și %ld", kBlinkMinMs, kBlinkMaxMs);
+        if (strcmp(c.text, "LED ON") == 0) {
+            led_set(MODE_ON, 0);
+            Serial.println("[comenzi] OK LED ON");
+        } else if (strcmp(c.text, "LED OFF") == 0) {
+            led_set(MODE_OFF, 0);
+            Serial.println("[comenzi] OK LED OFF");
+        } else if (strncmp(c.text, "BLINK ", 6) == 0) {
+            long ms = atol(c.text + 6);  // 0 dacă nu este număr
+            if (ms < kBlinkMinMs || ms > kBlinkMaxMs) {
+                Serial.printf("[comenzi] ERROR BLINK: se așteaptă un număr între %ld și %ld\n", kBlinkMinMs, kBlinkMaxMs);
             } else {
-                xSemaphoreTake(g_mutex, portMAX_DELAY);
-                g_led.mode = MODE_BLINK;
-                g_led.blink_ms = value;
-                xSemaphoreGive(g_mutex);
-                snprintf(out, sizeof(out), "OK BLINK %ld", value);
+                led_set(MODE_BLINK, ms);
+                Serial.printf("[comenzi] OK BLINK %ld\n", ms);
             }
         } else if (strcmp(c.text, "STATUS") == 0) {
-            xSemaphoreTake(g_mutex, portMAX_DELAY);
-            LedState s = g_led;  // copia, ca să nu formatăm textul cu mutexul luat
-            xSemaphoreGive(g_mutex);
-            snprintf(out, sizeof(out), "OK STATUS mod=%s blink=%lu", MODE_NAMES[s.mode], (unsigned long)s.blink_ms);
+            LedState s = led_get();  // copia: afișăm fără mutexul luat
+            Serial.printf("[comenzi] OK STATUS mod=%s blink=%lu\n", MODE_NAMES[s.mode], (unsigned long)s.blink_ms);
         } else {
-            snprintf(out, sizeof(out), "ERROR comandă necunoscută: %s", c.text);
+            Serial.printf("[comenzi] ERROR comandă necunoscută: %s\n", c.text);
         }
-        reply(out);
     }
 }
 
+// Task periodic (T = kLedPeriodMs): la fiecare job copiază starea și o aplică
+// pe LED. Clipirea se obține numărând joburile: la fiecare job se adună T, iar
+// când suma ajunge la semiperioada blink_ms, LED-ul comută.
 static void led_task(void* arg) {
     (void)arg;
-    bool on = false;
-    uint32_t since_toggle_ms = 0;
-    TickType_t last = xTaskGetTickCount();
+    bool on = false;                          // LED-ul aprins sau stins acum
+    uint32_t since_toggle_ms = 0;             // cât a trecut de la ultima comutare (BLINK)
+    TickType_t last = xTaskGetTickCount();    // ultima eliberare, pentru grila r_k = r_0 + kT
     for (;;) {
-        xSemaphoreTake(g_mutex, portMAX_DELAY);
-        LedState s = g_led;
-        xSemaphoreGive(g_mutex);
+        LedState s = led_get();  // copia stării, luată cu mutexul
 
-        since_toggle_ms += kLedPeriodMs;
+        since_toggle_ms += kLedPeriodMs;  // a mai trecut o perioadă
         if (s.mode == MODE_ON) {
             on = true;
         } else if (s.mode == MODE_OFF) {
             on = false;
-        } else if (since_toggle_ms >= s.blink_ms) {
+        } else if (since_toggle_ms >= s.blink_ms) {  // BLINK: s-a împlinit semiperioada
             on = !on;
             since_toggle_ms = 0;
         }
-        digitalWrite(LED_PIN, on ? LOW : HIGH);
-        xTaskDelayUntil(&last, pdMS_TO_TICKS(kLedPeriodMs));
+        digitalWrite(LED_PIN, on ? LOW : HIGH);  // LED-ul plăcii este aprins pe LOW
+        xTaskDelayUntil(&last, pdMS_TO_TICKS(kLedPeriodMs));  // așteptare absolută: fără derivă
     }
 }
 

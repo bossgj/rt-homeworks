@@ -6,9 +6,9 @@
 // coadă și le afișează pe Serial.
 //
 // Ce faceți: apăsați BOOT de câteva ori, scurt și apoi lung. La o singură
-// apăsare apar adesea mai multe întreruperi, la distanță de microsecunde sau
-// câteva milisecunde: contactele butonului „sar” (bounce). Exemplul nu le
-// filtrează, ca să le vedeți; filtrarea este în exemplul 04.
+// apăsare apar adesea mai multe întreruperi, la câteva milisecunde distanță
+// sau chiar în aceeași milisecundă: contactele butonului „sar” (bounce).
+// Exemplul nu le filtrează, ca să le vedeți; filtrarea este în exemplul 04.
 //
 // Reguli pentru ISR:
 //   - se declară cu IRAM_ATTR (codul stă în RAM, nu în flash)
@@ -20,43 +20,37 @@
 
 const int BUTTON_PIN = 9;
 
-// Un element al cozii: momentul întreruperii, în ms (ticks) și în µs
+// Un element al cozii: momentul întreruperii, în ms de la pornire (din tick-uri).
+// Un struct, ca să i se poată adăuga câmpuri (vezi exemplul 04).
 struct Press {
     uint32_t at_ms;
-    uint32_t at_us;
 };
 
 static QueueHandle_t g_queue = NULL;
-static volatile uint32_t g_lost = 0;  // întreruperi pierdute: coada era plină
 
 void IRAM_ATTR button_isr(void) {
-    Press p = {(uint32_t)(xTaskGetTickCountFromISR() * portTICK_PERIOD_MS), (uint32_t)micros()};
+    Press p = {(uint32_t)(xTaskGetTickCountFromISR() * portTICK_PERIOD_MS)};
     BaseType_t woken = pdFALSE;
-    if (xQueueSendFromISR(g_queue, &p, &woken) != pdTRUE) g_lost = g_lost + 1;
+    xQueueSendFromISR(g_queue, &p, &woken);
     portYIELD_FROM_ISR(woken);  // dacă a fost trezit un task mai prioritar, rulează imediat
 }
 
 static void press_task(void* arg) {
     (void)arg;
     uint32_t n = 0;
-    uint32_t prev_us = 0;
-    uint32_t lost_reported = 0;
+    uint32_t prev_ms = 0;
     for (;;) {
         Press p;
         xQueueReceive(g_queue, &p, portMAX_DELAY);  // blocat până sosește o întrerupere
         n = n + 1;
-        uint32_t delta_us = p.at_us - prev_us;
-        prev_us = p.at_us;
+        uint32_t delta_ms = p.at_ms - prev_ms;
+        prev_ms = p.at_ms;
 
-        if (n == 1 || delta_us > 1000000) {
+        if (n == 1 || delta_ms > 1000) {  // o apăsare nouă: linie goală înainte
             Serial.printf("\n#%lu  t = %lu ms\n", (unsigned long)n, (unsigned long)p.at_ms);
         } else {
-            Serial.printf("#%lu  t = %lu ms, la %lu µs după precedenta%s\n", (unsigned long)n,
-                          (unsigned long)p.at_ms, (unsigned long)delta_us, delta_us < 50000 ? "  <- bounce?" : "");
-        }
-        if (g_lost != lost_reported) {
-            lost_reported = g_lost;
-            Serial.printf("   întreruperi pierdute (coada plină): %lu\n", (unsigned long)lost_reported);
+            Serial.printf("#%lu  t = %lu ms, la %lu ms după precedenta%s\n", (unsigned long)n,
+                          (unsigned long)p.at_ms, (unsigned long)delta_ms, delta_ms < 50 ? "  <- bounce?" : "");
         }
     }
 }

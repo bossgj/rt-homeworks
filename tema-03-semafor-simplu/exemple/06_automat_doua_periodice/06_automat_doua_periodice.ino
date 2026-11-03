@@ -36,6 +36,7 @@ const uint32_t kClosingMs = 3000;
 
 enum Phase { CLOSED, OPENING, OPEN, CLOSING };
 const char* const PHASE_NAMES[] = {"CLOSED", "OPENING", "OPEN", "CLOSING"};
+const uint32_t PHASE_MS[] = {0, kOpeningMs, kOpenMs, kClosingMs};  // durata stării; 0 = până la un eveniment
 
 struct Barrier {
     Phase phase;
@@ -45,16 +46,6 @@ struct Barrier {
 
 static Barrier g_barrier = {CLOSED, 0, false};
 static SemaphoreHandle_t g_mutex = NULL;
-
-// Cât durează o stare; 0 = oricât (până la un eveniment)
-static uint32_t phase_duration(Phase p) {
-    switch (p) {
-        case OPENING: return kOpeningMs;
-        case OPEN: return kOpenMs;
-        case CLOSING: return kClosingMs;
-        default: return 0;
-    }
-}
 
 static void control_task(void* arg) {
     (void)arg;
@@ -111,15 +102,15 @@ static void output_task(void* arg) {
         blink_on = !blink_on;  // alternează de la un job la altul
         digitalWrite(LED_PIN, led ? LOW : HIGH);
 
-        char left[16] = "-";  // CLOSED nu are o durată fixă
-        uint32_t duration = phase_duration(b.phase);
+        // Secundele rămase din starea curentă, rotunjite în sus; 0 în CLOSED, care nu are durată
+        uint32_t duration = PHASE_MS[b.phase];
+        uint32_t seconds = 0;
         if (duration > 0) {
             uint32_t elapsed = min(now - b.phase_start_ms, duration);
-            uint32_t seconds = (duration - elapsed + 999) / 1000;  // rotunjit în sus
-            snprintf(left, sizeof(left), "%lu s", (unsigned long)seconds);
+            seconds = (duration - elapsed + 999) / 1000;
         }
-        Serial.printf("[iesire]  %-7s LED %-6s cerere %d  rămas %s\n", PHASE_NAMES[b.phase], led ? "aprins" : "stins",
-                      b.request ? 1 : 0, left);
+        Serial.printf("[iesire]  %-7s LED %-6s cerere %d  rămas %lu s\n", PHASE_NAMES[b.phase], led ? "aprins" : "stins",
+                      b.request ? 1 : 0, (unsigned long)seconds);
         xTaskDelayUntil(&last, pdMS_TO_TICKS(kOutputPeriodMs));
     }
 }

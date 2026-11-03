@@ -49,7 +49,7 @@ Un scriitor (prioritate 2) scrie două câmpuri care trebuie să fie egale; un c
 
 ### 03 – ISR și coadă
 
-Apăsați BOOT. Fiecare front descrescător produce o întrerupere, iar ISR-ul pune momentul ei în coadă. Taskul afișează intervalul dintre întreruperi: la o singură apăsare apar adesea mai multe, la microsecunde sau milisecunde distanță (**bounce**). ISR-ul nu le filtrează: de asta se ocupă exemplul 04.
+Apăsați BOOT. Fiecare front descrescător produce o întrerupere, iar ISR-ul pune momentul ei în coadă. Taskul afișează intervalul dintre întreruperi: la o singură apăsare apar adesea mai multe, la câteva milisecunde distanță sau chiar în aceeași milisecundă (**bounce**). ISR-ul nu le filtrează: de asta se ocupă exemplul 04.
 
 ### 04 – task sporadic
 
@@ -63,12 +63,12 @@ Aceeași coadă primește apăsări de la BOOT (din ISR) și de la tasta `b` (di
 
 Nu este necesar pentru temă: placa din această temă primește o singură comandă, `BUTTON`, tratată de taskul sporadic. Exemplul recapitulează taskul aperiodic din tema 02.
 
-Comenzile `LED ON`, `LED OFF`, `BLINK <ms>`, `STATUS` ajung în coadă ca text (elementul cozii conține tabloul `char`, nu un pointer). Taskul aperiodic le execută, modifică starea LED-ului cu mutexul luat și răspunde cu `OK ...` sau `ERROR ...`. Încercați comenzi greșite (`BLINK`, `BLINK 20`, `BLINK 300 400`, `xyz`): taskul răspunde cu `ERROR` și continuă. Comenzile se scriu exact, cu majuscule: `led on` este o comandă necunoscută.
+Comenzile `LED ON`, `LED OFF`, `BLINK <ms>`, `STATUS` ajung în coadă ca text (elementul cozii conține tabloul `char`, nu un pointer). Taskul aperiodic le execută, modifică starea LED-ului prin `led_set()`, care ține mutexul doar cât scrie câmpurile, și răspunde cu `OK ...` sau `ERROR ...`. Încercați comenzi greșite (`BLINK`, `BLINK 20`, `BLINK abc`, `xyz`): taskul răspunde cu `ERROR` și continuă. Comenzile se scriu exact, cu majuscule: `led on` este o comandă necunoscută.
 
 ### 06 – automat cu stări și două taskuri periodice
 
 O barieră de parcare: `CLOSED`, `OPENING` (3 s), `OPEN` (5 s), `CLOSING` (3 s). Tasta `m` aduce o mașină.
 
 - Taskul de **control** ($T = 100$ ms) decide starea; durata fiecărei stări se măsoară cu `millis()` de la momentul intrării în ea.
-- Taskul de **ieșire** ($T = 500$ ms) copiază starea și stabilește ce se vede: LED-ul, intermitent în `OPENING` și `CLOSING` (aprins la un job, stins la următorul), și secundele rămase, rotunjite în sus.
+- Taskul de **ieșire** ($T = 500$ ms) copiază starea și stabilește ce se vede: LED-ul, intermitent în `OPENING` și `CLOSING` (aprins la un job, stins la următorul), și secundele rămase, rotunjite în sus (0 în `CLOSED`, ca în mesajul `lights` din temă).
 - Trimiteți `m` cât bariera e ridicată: cererea rămâne înregistrată și bariera se ridică din nou după ce coboară.

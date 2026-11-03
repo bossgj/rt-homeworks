@@ -228,6 +228,8 @@ Pe lângă ce face dashboard-ul Swing, pagina web:
 
 Cu traficul „aglomerat” și cu pietoni la fiecare ciclu, coloanele de mașini cresc: verdele minim de 10 s nu ajunge pentru toate mașinile. Nu este o greșeală a plăcii.
 
+Dashboard-ul se poate încerca și fără placă, cu mesaje trimise de mână dintr-un client MQTT: vezi [Jucați rolul plăcii](#jucați-rolul-plăcii-mesaje-lights-trimise-de-mână).
+
 ### `start/esp32_semafor/`
 
 Scheletul schiței Arduino. Ca în tema 02, comunicația este gata: Wi-Fi, ora (SNTP), clientul MQTT. Așa cum este, schița se conectează la broker și afișează pe Serial comenzile primite, dar nu publică nimic, deci dashboard-ul încă nu vede placa.
@@ -278,6 +280,45 @@ Detaliile din tema 02 rămân valabile:
 - stiva fiecărui task are cel puțin 4096 de octeți;
 - `Serial.setTxTimeoutMs(0)` rămâne în `setup()`.
 
+### Jucați rolul plăcii: mesaje `lights` trimise de mână
+
+Înainte să scrieți cod, puteți fi voi „placa”: trimiteți mesaje `lights` dintr-un client MQTT și urmăriți cum reacționează dashboard-ul web. Așa vedeți exact ce așteaptă el și ce face cu fiecare câmp. Dashboard-ul nu verifică de unde vine mesajul: orice client care publică pe topic-ul `lights` al studentului vostru este, pentru el, o placă.
+
+1. Porniți dashboard-ul web (`start/dashboard-web/`, cu `STUDENT` setat) sau deschideți pagina de pe serverul cursului cu numele vostru.
+2. În **MQTTX** creați o conexiune la `control.aut.utcluj.ro`, portul `11188`, fără utilizator și parolă, și abonați-vă la `ssatr/popescu-ion/#` (cu numele vostru în loc de `popescu-ion`).
+3. Publicați, ca *Plaintext* și fără *Retain*, pe topic-ul `ssatr/popescu-ion/devices/manual/lights`:
+
+```
+manual;0;CAR_GREEN;GREEN;RED;0;0
+```
+
+Dashboard-ul adaugă device-ul `manual` în lista **Device** (ID-ul este primul câmp din mesaj, nu numele din topic) și aprinde verde pentru mașini. Timestamp-ul nu este verificat, puteți lăsa `0`. După 2 s fără mesaje, lămpile se sting și pagina scrie „placa nu mai trimite mesaje”: placa reală publică la fiecare 500 ms. În MQTTX, porniți **Timed message** (în meniul de lângă butonul de trimitere) cu 1 s, ca mesajul să se repete singur; când vreți altă fază, schimbați textul și trimiteți din nou. Cu `mosquitto`, același lucru:
+
+```bash
+while true; do mosquitto_pub -h control.aut.utcluj.ro -p 11188 -t 'ssatr/popescu-ion/devices/manual/lights' -m 'manual;0;CAR_GREEN;GREEN;RED;0;0'; sleep 1; done
+```
+
+Un ciclu complet, mesaj cu mesaj:
+
+| Trimiteți | Ce face dashboard-ul |
+|-----------|----------------------|
+| `manual;0;CAR_GREEN;GREEN;RED;0;0` | verde pentru mașini, roșu pentru pietoni; mașinile trec, pietonii se adună la bordură |
+| `manual;0;CAR_GREEN;GREEN;RED;1;0` | lampa AȘTEPTAȚI și butoanele de pe trotuar se aprind; faza rămâne aceeași |
+| `manual;0;CAR_YELLOW;YELLOW;RED;1;0` | galben: mașinile care mai pot frâna opresc la linie, celelalte trec |
+| `manual;0;ALL_RED;RED;RED;1;0` | roșu pentru toți; coloana de mașini crește |
+| `manual;0;PED_GREEN;RED;GREEN;0;8` | pietonii traversează, numărătoarea arată 8; scădeți voi secundele (7, 6, …): când rămân puține, unii pietoni nu mai pornesc |
+| `manual;0;CAR_GREEN;GREEN;RED;0;0` | mașinile pornesc din nou; pietonii rămași pe zebră grăbesc pasul |
+
+Apoi greșiți intenționat, ca să vedeți verificările de siguranță:
+
+| Trimiteți | Ce face dashboard-ul |
+|-----------|----------------------|
+| `manual;0;PED_GREEN;GREEN;GREEN;0;8` | în Jurnal: `EROARE DE SIGURANȚĂ: CONFLICT: pietoni GREEN, mașini GREEN`; pe zebră apar **conflicte mașină–pieton** |
+| `CAR_GREEN` cu `GREEN`, apoi direct `ALL_RED` cu `RED` | `mașini: GREEN → RED fără YELLOW`; mașinile prea aproape de linie nu mai pot opri: **mașini trecute pe roșu** |
+| `manual;0;CAR_GREEN;GREEN;RED;0` (șase câmpuri) | `mesaj lights invalid (are 6 câmpuri în loc de 7)`; lămpile rămân cum erau |
+
+În sens invers, dashboard-ul vă trimite vouă comanda: apăsați **Buton pietoni** (sau bifați **pietonii apasă singuri butonul**) și urmăriți în MQTTX mesajul `BUTTON` sosit pe `ssatr/popescu-ion/devices/manual/commands`. Pagina așteaptă apoi 5 s să vadă `asteptati` = `1` în `lights`. Răspundeți cu al doilea mesaj din primul tabel și pagina scrie „AȘTEPTAȚI aprinsă după … ms”; dacă nu răspundeți, scrie „AȘTEPTAȚI nu s-a aprins în 5 s”. Exact asta va face placa voastră: taskul sporadic înregistrează cererea, iar taskul de ieșire o publică la jobul următor.
+
 ## Cerințe
 
 ### 1. Placa ESP32 (`start/esp32_semafor/`)
@@ -303,7 +344,7 @@ Cu dashboard-ul pornit:
 
 Nu scrieți tot codul deodată. Fiecare pas de mai jos se poate verifica separat:
 
-1. **Conexiunea.** Setați `STUDENT` în `config.h` și în `Config.java`, încărcați scheletul neschimbat și porniți dashboard-ul. Placa nu apare încă în lista **Device**, pentru că nu publică nimic. Verificați totuși în Serial Monitor că placa s-a conectat la broker.
+1. **Conexiunea.** Setați `STUDENT` în `config.h` și în `Config.java`, încărcați scheletul neschimbat și porniți dashboard-ul. Placa nu apare încă în lista **Device**, pentru că nu publică nimic. Verificați totuși în Serial Monitor că placa s-a conectat la broker. Înainte de orice cod, [jucați rolul plăcii](#jucați-rolul-plăcii-mesaje-lights-trimise-de-mână) din MQTTX, ca să vedeți ce așteaptă dashboard-ul de la fiecare mesaj.
 2. **Starea și ieșirea (TODO 0 parțial, TODO 2).** Definiți starea și mutexul, apoi scrieți doar taskul de ieșire. Placa apare în dashboard cu lămpile fazei inițiale. Schimbați temporar faza inițială (de exemplu `ALL_RED` sau `PED_GREEN`) și verificați că lămpile se văd corect.
 3. **Controlul (TODO 1).** Adăugați taskul de control. Ca să-l încercați înainte de buton, porniți temporar cu cererea pietonului setată: după verdele minim de 10 s trebuie să vedeți un ciclu complet, cu duratele din tabel, apoi semaforul rămâne pe `CAR_GREEN`. Pe Serial apare fiecare schimbare de fază.
 4. **Butonul (TODO 3).** ISR-ul, coada butonului și taskul sporadic. Încercați BOOT și **Buton pietoni**, rar și des.
