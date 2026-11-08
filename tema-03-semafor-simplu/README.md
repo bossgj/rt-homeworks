@@ -154,7 +154,7 @@ Taskul sporadic este eliberat de evenimente, nu de ceas: stă blocat în `xQueue
 | faza curentă și momentul intrării în ea | control | control, ieșire |
 | cererea pietonului | sporadic (o setează), control (o șterge) | control, ieșire |
 
-Fără protecție, un task poate citi starea în mijlocul unei modificări făcute de altul. De exemplu, taskul de ieșire poate vedea faza nouă cu momentul de intrare al fazei vechi și calculează o numărătoare greșită. Exemplul [`02_mutex_stare_partajata`](exemple/02_mutex_stare_partajata/02_mutex_stare_partajata.ino) arată cât de des se întâmplă asta. De aceea accesul la stare se face cu un **mutex** (`xSemaphoreCreateMutex`, `xSemaphoreTake`, `xSemaphoreGive`):
+Fără protecție, un task poate citi starea în mijlocul unei modificări făcute de altul. De exemplu, taskul de ieșire poate vedea faza nouă cu momentul de intrare al fazei vechi și calculează o numărătoare greșită. Exemplul [`torn_state`](https://github.com/automatica-cluj/rt-labs-esp32c3/blob/main/lab6-task-patterns/torn_state/torn_state.ino) arată cât de des se întâmplă asta. De aceea accesul la stare se face cu un **mutex** (`xSemaphoreCreateMutex`, `xSemaphoreTake`, `xSemaphoreGive`):
 
 - mutexul se ține **cât mai puțin**: doar citirea sau scrierea câmpurilor. Taskul de ieșire, de exemplu, copiază starea într-o variabilă locală și eliberează mutexul înainte să construiască și să publice mesajul;
 - cât timp țineți mutexul: fără `mqtt_publish()`, fără `Serial`, fără așteptări;
@@ -179,7 +179,7 @@ void IRAM_ATTR button_isr(void) {
 }
 ```
 
-Contactele unui buton nu se închid curat (**bounce**): o singură apăsare produce adesea mai multe întreruperi, la câteva zeci de microsecunde sau câteva milisecunde distanță. Exemplul [`03_isr_coada`](exemple/03_isr_coada/03_isr_coada.ino) le arată. Nu le filtrați în ISR: le respinge taskul sporadic, prin intervalul minim între sosiri. Pentru asta, momentul fiecărei apăsări este pus în elementul cozii de cel care o trimite (ISR-ul sau `command_received()`), nu citit de task când o preia.
+Contactele unui buton nu se închid curat (**bounce**): o singură apăsare produce adesea mai multe întreruperi, la câteva zeci de microsecunde sau câteva milisecunde distanță. Exemplul [`isr_queue`](https://github.com/automatica-cluj/rt-labs-esp32c3/blob/main/lab6-task-patterns/isr_queue/isr_queue.ino) le arată. Nu le filtrați în ISR: le respinge taskul sporadic, prin intervalul minim între sosiri. Pentru asta, momentul fiecărei apăsări este pus în elementul cozii de cel care o trimite (ISR-ul sau `command_received()`), nu citit de task când o preia.
 
 Nu țineți BOOT apăsat când apăsați RST sau conectați cablul: așa porniți bootloaderul, nu schița.
 
@@ -187,7 +187,7 @@ Nu țineți BOOT apăsat când apăsați RST sau conectați cablul: așa porniț
 
 ### `exemple/`
 
-Șase schițe Arduino mici, fiecare cu un singur concept: așteptarea absolută, mutexul, ISR-ul cu coadă, taskul sporadic, taskul aperiodic, automatul cu două taskuri periodice. Exemplul cu taskul aperiodic nu este necesar pentru temă: recapitulează tema 02. Rulează doar cu placa la USB și Serial Monitor, fără Wi-Fi și MQTT. Rulați-le înainte să scrieți taskurile; ce urmăriți în fiecare este descris în [`exemple/README.md`](exemple/README.md).
+Exemplele sunt în [laboratorul 6 din rt-labs-esp32c3](https://github.com/automatica-cluj/rt-labs-esp32c3/tree/main/lab6-task-patterns): șase schițe Arduino mici, fiecare cu un singur concept: așteptarea absolută, mutexul, ISR-ul cu coadă, taskul sporadic, taskul aperiodic, automatul cu două taskuri periodice. Exemplul cu taskul aperiodic nu este necesar pentru temă: recapitulează tema 02. Rulează doar cu placa la USB și Serial Monitor, fără Wi-Fi și MQTT. Rulați-le înainte să scrieți taskurile; ce urmăriți în fiecare și la ce TODO vă ajută este descris în [`exemple/README.md`](exemple/README.md).
 
 ### `start/dashboard/` (gata implementat)
 
@@ -368,6 +368,6 @@ După push, adăugați commit ID-ul soluției (`git rev-parse HEAD`) ca **coment
 ## Bibliografie
 
 - Cursul: [2.3 Eliberare periodică](https://control.aut.utcluj.ro:8030/part-02-time/03-periodic-release/), [3.2 Modelul de task](https://control.aut.utcluj.ro:8030/part-03-scheduling/02-task-model/)
-- [rt-labs-esp32c3](https://github.com/automatica-cluj/rt-labs-esp32c3): laboratorul 0 (`two_tasks`), `docs/freertos_concepts.md`
+- [rt-labs-esp32c3](https://github.com/automatica-cluj/rt-labs-esp32c3): laboratorul 6 (`lab6-task-patterns`), laboratorul 0 (`two_tasks`), `docs/freertos_concepts.md`
 - [FreeRTOS: mutex](https://www.freertos.org/Documentation/02-Kernel/02-Kernel-features/02-Queues-mutexes-and-semaphores/04-Mutexes), [`xQueueSendFromISR`](https://www.freertos.org/Documentation/02-Kernel/04-API-references/06-Queues/04-xQueueSendFromISR), [`xTaskDelayUntil`](https://www.freertos.org/Documentation/02-Kernel/04-API-references/02-Task-control/03-xTaskDelayUntil)
 - [Arduino-ESP32: GPIO și întreruperi](https://docs.espressif.com/projects/arduino-esp32/en/latest/api/gpio.html)
